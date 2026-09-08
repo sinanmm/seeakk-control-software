@@ -1,0 +1,399 @@
+// =======================================================
+// SEEAKK CONTROL SOFTWARE - PRISMA SCHEMA
+// Dedicated PostgreSQL Database for Control Software Only
+// NEVER connect to SEEAKK Customer / Production / Test DBs
+// =======================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// -------------------------------------------------------
+// ENUMS
+// -------------------------------------------------------
+
+enum CompanyStatus {
+  TRIAL
+  ACTIVE
+  GRACE_PERIOD
+  PAST_DUE
+  SUSPENDED
+  CANCELLED
+}
+
+enum Environment {
+  PRODUCTION
+  STAGING
+  TEST
+}
+
+enum BillingInterval {
+  MONTHLY
+  ANNUAL
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  PAUSED
+}
+
+enum EntitlementType {
+  NUMERIC
+  BOOLEAN
+}
+
+enum EntitlementKey {
+  USERS
+  LEADS
+  LEAD_IMPORTS
+  STORAGE_GB
+  CUSTOM_DOMAINS
+  API_ACCESS
+  WEBHOOKS
+  DEDICATED_SUPPORT
+}
+
+enum InvoiceStatus {
+  DRAFT
+  OPEN
+  PAID
+  PARTIALLY_PAID
+  OVERDUE
+  VOID
+  UNCOLLECTIBLE
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  CREDIT_CARD
+  UPI
+  STRIPE
+  MANUAL
+}
+
+enum AuditAction {
+  COMPANY_CREATED
+  COMPANY_UPDATED
+  COMPANY_STATUS_CHANGED
+  COMPANY_SUSPENDED
+  COMPANY_ACTIVATED
+  PLAN_CREATED
+  PLAN_UPDATED
+  SUBSCRIPTION_CREATED
+  SUBSCRIPTION_UPDATED
+  SUBSCRIPTION_CANCELLED
+  ENTITLEMENT_OVERRIDE_SET
+  ENTITLEMENT_OVERRIDE_REMOVED
+  GRACE_PERIOD_ENABLED
+  GRACE_PERIOD_EXTENDED
+  GRACE_PERIOD_SHORTENED
+  GRACE_PERIOD_REVOKED
+  INVOICE_CREATED
+  INVOICE_STATUS_UPDATED
+  PAYMENT_RECORDED
+  ADMIN_LOGIN
+  ADMIN_CREATED
+  ADMIN_UPDATED
+  ROLE_UPDATED
+}
+
+// -------------------------------------------------------
+// ADMIN & RBAC ENTITIES
+// -------------------------------------------------------
+
+model AdminUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  passwordHash String
+  roleId       String
+  role         Role      @relation(fields: [roleId], references: [id])
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  auditLogs        AuditLog[]
+  createdGracePeriods GracePeriod[]
+
+  @@index([email])
+  @@index([roleId])
+}
+
+model Role {
+  id          String           @id @default(cuid())
+  name        String           @unique // SUPER_ADMIN, BILLING_ADMIN, SUPPORT_ADMIN, VIEWER
+  description String?
+  isSystem    Boolean          @default(false)
+  permissions RolePermission[]
+  admins      AdminUser[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model Permission {
+  id          String           @id @default(cuid())
+  code        String           @unique // e.g. companies:read, companies:write, billing:manage
+  module      String           // companies, plans, billing, administration, etc.
+  description String
+  roles       RolePermission[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+}
+
+// -------------------------------------------------------
+// COMPANY MANAGEMENT
+// -------------------------------------------------------
+
+model Company {
+  id            String        @id @default(cuid())
+  internalCode  String        @unique // e.g. CO-1001
+  name          String
+  slug          String        @unique
+  workspaceId   String?       // Customer's SEEAKK workspace ID (non-unique across test/prod environments)
+  environment   Environment   @default(PRODUCTION)
+  status        CompanyStatus @default(TRIAL)
+  contactEmail  String
+  contactPhone  String?
+  billingAddress String?
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  subscriptions         Subscription[]
+  entitlementOverrides  CompanyEntitlementOverride[]
+  usageRecords          CompanyUsage[]
+  gracePeriods          GracePeriod[]
+  invoices              Invoice[]
+  payments              Payment[]
+
+  @@index([status])
+  @@index([environment])
+  @@index([workspaceId])
+  @@index([name])
+}
+
+// -------------------------------------------------------
+// PLANS & ENTITLEMENTS
+// -------------------------------------------------------
+
+model Plan {
+  id              String            @id @default(cuid())
+  code            String            @unique // STARTER, GROWTH, ENTERPRISE
+  name            String
+  description     String?
+  billingInterval BillingInterval   @default(MONTHLY)
+  price           Float             @default(0)
+  currency        String            @default("INR")
+  isActive        Boolean           @default(true)
+  sortOrder       Int               @default(0)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  entitlements  PlanEntitlement[]
+  subscriptions Subscription[]
+
+  @@index([isActive])
+}
+
+model PlanEntitlement {
+  id           String          @id @default(cuid())
+  planId       String
+  plan         Plan            @relation(fields: [planId], references: [id], onDelete: Cascade)
+  key          EntitlementKey
+  type         EntitlementType @default(NUMERIC)
+  numericValue Int?
+  booleanValue Boolean?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@unique([planId, key])
+  @@index([planId])
+}
+
+model CompanyEntitlementOverride {
+  id               String          @id @default(cuid())
+  companyId        String
+  company          Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  key              EntitlementKey
+  type             EntitlementType @default(NUMERIC)
+  numericValue     Int?
+  booleanValue     Boolean?
+  reason           String
+  updatedByAdminId String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@unique([companyId, key])
+  @@index([companyId])
+}
+
+// -------------------------------------------------------
+// SUBSCRIPTIONS
+// -------------------------------------------------------
+
+model Subscription {
+  id                 String             @id @default(cuid())
+  companyId          String
+  company            Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  planId             String
+  plan               Plan               @relation(fields: [planId], references: [id])
+  status             SubscriptionStatus @default(TRIALING)
+  currentPeriodStart DateTime           @default(now())
+  currentPeriodEnd   DateTime
+  cancelAtPeriodEnd  Boolean            @default(false)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  invoices Invoice[]
+
+  @@index([companyId])
+  @@index([planId])
+  @@index([status])
+}
+
+// -------------------------------------------------------
+// USAGE
+// -------------------------------------------------------
+
+model CompanyUsage {
+  id             String         @id @default(cuid())
+  companyId      String
+  company        Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  metricKey      EntitlementKey
+  currentValue   Float          @default(0)
+  lastReportedAt DateTime       @default(now())
+  metadata       Json?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([companyId, metricKey])
+  @@index([companyId])
+}
+
+// -------------------------------------------------------
+// GRACE PERIODS
+// -------------------------------------------------------
+
+model GracePeriod {
+  id               String     @id @default(cuid())
+  companyId        String
+  company          Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  isActive         Boolean    @default(true)
+  startDate        DateTime   @default(now())
+  endDate          DateTime
+  reason           String
+  notes            String?
+  createdByAdminId String?
+  admin            AdminUser? @relation(fields: [createdByAdminId], references: [id])
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  @@index([companyId])
+  @@index([isActive])
+}
+
+// -------------------------------------------------------
+// BILLING & PAYMENTS
+// -------------------------------------------------------
+
+model Invoice {
+  id             String        @id @default(cuid())
+  companyId      String
+  company        Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  subscriptionId String?
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id])
+  invoiceNumber  String        @unique // e.g. INV-2026-0001
+  invoiceDate    DateTime      @default(now())
+  dueDate        DateTime
+  subtotal       Float         @default(0)
+  tax            Float         @default(0)
+  totalAmount    Float         @default(0)
+  amountPaid     Float         @default(0)
+  amountDue      Float         @default(0)
+  currency       String        @default("INR")
+  status         InvoiceStatus @default(OPEN)
+  pdfUrl         String?
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  payments Payment[]
+
+  @@index([companyId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model Payment {
+  id               String        @id @default(cuid())
+  invoiceId        String
+  invoice          Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  companyId        String
+  company          Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  amount           Float
+  currency         String        @default("INR")
+  paymentDate      DateTime      @default(now())
+  paymentMethod    PaymentMethod @default(BANK_TRANSFER)
+  referenceNumber  String?
+  status           PaymentStatus @default(COMPLETED)
+  notes            String?
+  recordedByAdminId String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([invoiceId])
+  @@index([companyId])
+  @@index([status])
+}
+
+// -------------------------------------------------------
+// AUDIT LOGS
+// -------------------------------------------------------
+
+model AuditLog {
+  id          String      @id @default(cuid())
+  adminId     String?
+  admin       AdminUser?  @relation(fields: [adminId], references: [id])
+  adminEmail  String
+  action      AuditAction
+  entityType  String      // Company, Plan, Entitlement, GracePeriod, Invoice, Payment, AdminUser
+  entityId    String
+  oldValue    Json?
+  newValue    Json?
+  metadata    Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime    @default(now())
+
+  @@index([adminId])
+  @@index([entityType, entityId])
+  @@index([action])
+  @@index([createdAt])
+}
