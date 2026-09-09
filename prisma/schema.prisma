@@ -110,6 +110,42 @@ enum AuditAction {
   ADMIN_CREATED
   ADMIN_UPDATED
   ROLE_UPDATED
+  PAYMENT_PROOF_APPROVED
+  PAYMENT_PROOF_REJECTED
+  PAYMENT_APPROVED
+  PAYMENT_REJECTED
+  MODULE_OVERRIDE_SET
+  MODULE_OVERRIDE_REMOVED
+  SYNC_EVENT_TRIGGERED
+}
+
+enum PaymentRequestStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum AppModuleKey {
+  LEADS
+  DEALS
+  WHATSAPP
+  AUTOMATION
+  REPORTS
+  CAMPAIGNS
+  INTEGRATIONS
+}
+
+enum SyncDirection {
+  INBOUND_FROM_SEEAKK
+  OUTBOUND_TO_SEEAKK
+}
+
+enum SyncStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  RETRYING
 }
 
 // -------------------------------------------------------
@@ -128,8 +164,10 @@ model AdminUser {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  auditLogs        AuditLog[]
-  createdGracePeriods GracePeriod[]
+  auditLogs               AuditLog[]
+  createdGracePeriods     GracePeriod[]
+  reviewedPaymentRequests PaymentProofRequest[]
+  updatedModuleOverrides  CompanyModuleOverride[]
 
   @@index([email])
   @@index([roleId])
@@ -176,7 +214,7 @@ model Company {
   internalCode  String        @unique // e.g. CO-1001
   name          String
   slug          String        @unique
-  workspaceId   String?       // Customer's SEEAKK workspace ID (non-unique across test/prod environments)
+  workspaceId   String?       // Customer's SEEAKK workspace ID
   environment   Environment   @default(PRODUCTION)
   status        CompanyStatus @default(TRIAL)
   contactEmail  String
@@ -192,7 +230,11 @@ model Company {
   gracePeriods          GracePeriod[]
   invoices              Invoice[]
   payments              Payment[]
+  paymentProofRequests  PaymentProofRequest[]
+  moduleOverrides       CompanyModuleOverride[]
+  syncLogs              SystemSyncLog[]
 
+  @@unique([workspaceId, environment])
   @@index([status])
   @@index([environment])
   @@index([workspaceId])
@@ -216,8 +258,9 @@ model Plan {
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
-  entitlements  PlanEntitlement[]
-  subscriptions Subscription[]
+  entitlements         PlanEntitlement[]
+  subscriptions        Subscription[]
+  paymentProofRequests PaymentProofRequest[]
 
   @@index([isActive])
 }
@@ -344,7 +387,8 @@ model Invoice {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  payments Payment[]
+  payments            Payment[]
+  paymentProofRequest PaymentProofRequest?
 
   @@index([companyId])
   @@index([status])
@@ -374,6 +418,109 @@ model Payment {
 }
 
 // -------------------------------------------------------
+// SEEAKK INTEGRATION: PAYMENT PROOF & REVIEW
+// -------------------------------------------------------
+
+model PaymentProofRequest {
+  id                   String               @id @default(cuid())
+  companyId            String
+  company              Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  workspaceId          String               // SEEAKK canonical workspace ID
+  environment          Environment          @default(TEST)
+  seeakkPaymentId      String               // External payment submission ID from SEEAKK
+  paymentReference     String?              // Human-readable reference (e.g. SEEAKK-PAY-20260830-8644)
+  planId               String
+  plan                 Plan                 @relation(fields: [planId], references: [id])
+  amount               Float
+  currency             String               @default("INR")
+  billingCycle         BillingInterval      @default(MONTHLY)
+  transactionRef       String?              // Bank UTR or Transaction reference number
+  proofFileKey         String?              // External Wasabi object key (file NOT stored in DB)
+  proofFileMime        String?              // e.g. image/jpeg, image/png, application/pdf
+  requestedUsers       Int?
+  requestedMonths      Int?
+  unitPrice            Float?
+  remoteStatus         String?              // Raw SEEAKK status (PAYMENT_REQUIRED, PAYMENT_SUBMITTED, etc.)
+  paymentDate          DateTime?            // Payment transfer date
+  submittedAt          DateTime?            // User proof submission timestamp
+  notes                String?
+  status               PaymentRequestStatus @default(PENDING)
+
+  // Review Details
+  reviewedByAdminId    String?
+  reviewedByAdmin      AdminUser?           @relation(fields: [reviewedByAdminId], references: [id])
+  reviewedAt           DateTime?
+  rejectionReason      String?
+  approvedEntitlements Json?                // Snapshot of granted commercial limits upon approval
+
+  // Optional link to settled Invoice upon approval
+  invoiceId            String?              @unique
+  invoice              Invoice?             @relation(fields: [invoiceId], references: [id])
+
+  rawPayload           Json?                // Complete sanitized remote payload snapshot
+
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  @@unique([seeakkPaymentId, environment])
+  @@index([environment])
+  @@index([companyId])
+  @@index([workspaceId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// -------------------------------------------------------
+// SEEAKK INTEGRATION: MODULE OVERRIDES
+// -------------------------------------------------------
+
+model CompanyModuleOverride {
+  id               String       @id @default(cuid())
+  companyId        String
+  company          Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  moduleKey        AppModuleKey
+  isEnabled        Boolean
+  reason           String
+  updatedByAdminId String?
+  updatedByAdmin   AdminUser?   @relation(fields: [updatedByAdminId], references: [id])
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@unique([companyId, moduleKey])
+  @@index([companyId])
+}
+
+// -------------------------------------------------------
+// SEEAKK INTEGRATION: SERVER-TO-SERVER SYNC & IDEMPOTENCY
+// -------------------------------------------------------
+
+model SystemSyncLog {
+  id              String        @id @default(cuid())
+  idempotencyKey  String        @unique
+  direction       SyncDirection
+  eventType       String        // e.g. company.created, payment.submitted, entitlements.pushed, status.updated
+  workspaceId     String?
+  companyId       String?
+  company         Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  requestPayload  Json?
+  responsePayload Json?
+  statusCode      Int?
+  status          SyncStatus    @default(PENDING)
+  retryCount      Int           @default(0)
+  maxRetries      Int           @default(5)
+  errorMessage    String?
+  lastAttemptAt   DateTime      @default(now())
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([workspaceId])
+  @@index([companyId])
+  @@index([status])
+  @@index([eventType])
+  @@index([createdAt])
+}
+
+// -------------------------------------------------------
 // AUDIT LOGS
 // -------------------------------------------------------
 
@@ -383,7 +530,7 @@ model AuditLog {
   admin       AdminUser?  @relation(fields: [adminId], references: [id])
   adminEmail  String
   action      AuditAction
-  entityType  String      // Company, Plan, Entitlement, GracePeriod, Invoice, Payment, AdminUser
+  entityType  String      // Company, Plan, Entitlement, GracePeriod, Invoice, Payment, AdminUser, PaymentProofRequest, CompanyModuleOverride, SystemSyncLog
   entityId    String
   oldValue    Json?
   newValue    Json?

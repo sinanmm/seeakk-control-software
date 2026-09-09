@@ -8,7 +8,9 @@ export type PermissionCode =
   | 'billing:read'
   | 'billing:manage'
   | 'admins:manage'
-  | 'audit:read';
+  | 'audit:read'
+  | 'payments:review'
+  | 'sync:manage';
 
 export interface AdminSession {
   id: string;

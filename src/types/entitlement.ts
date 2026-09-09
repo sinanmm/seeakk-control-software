@@ -47,3 +47,24 @@ export interface PlanDTO {
     booleanValue: boolean | null;
   }[];
 }
+
+export type AppModuleKey =
+  | 'LEADS'
+  | 'DEALS'
+  | 'WHATSAPP'
+  | 'AUTOMATION'
+  | 'REPORTS'
+  | 'CAMPAIGNS'
+  | 'INTEGRATIONS';
+
+export interface CompanyModuleOverrideDTO {
+  id: string;
+  companyId: string;
+  moduleKey: AppModuleKey;
+  isEnabled: boolean;
+  reason: string;
+  updatedByAdminId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+

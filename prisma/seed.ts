@@ -59,6 +59,8 @@ async function main() {
     { code: 'billing:manage', module: 'billing', description: 'Create invoices, record payments, and manage subscriptions' },
     { code: 'admins:manage', module: 'administration', description: 'Manage admin user accounts and roles' },
     { code: 'audit:read', module: 'administration', description: 'View system audit trail and activity history' },
+    { code: 'payments:review', module: 'billing', description: 'Review, approve, or reject customer payment proof submissions' },
+    { code: 'sync:manage', module: 'administration', description: 'Inspect and manage server-to-server platform synchronization logs and retries' },
   ];
 
   for (const perm of permissions) {

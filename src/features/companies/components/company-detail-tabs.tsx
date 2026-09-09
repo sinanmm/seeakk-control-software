@@ -16,7 +16,12 @@ import {
   setEntitlementOverrideAction,
   removeEntitlementOverrideAction,
   manageGracePeriodAction,
+  grantGracePeriodAction,
   revokeGracePeriodAction,
+  lockCompanyAction,
+  unlockCompanyAction,
+  suspendCompanyAction,
+  unsuspendCompanyAction,
 } from '@/server/actions/company.actions';
 import { createInvoiceAction, recordPaymentAction } from '@/server/actions/billing.actions';
 import { EffectiveEntitlement } from '@/types/entitlement';
@@ -32,6 +37,12 @@ import {
   RotateCcw,
   Plus,
   Building,
+  Lock,
+  Unlock,
+  Ban,
+  PlayCircle,
+  Database,
+  RefreshCw,
 } from 'lucide-react';
 import { CompanyStatus, Environment } from '@/types/company';
 
@@ -89,6 +100,11 @@ export function CompanyDetailTabs({
 
   // Modals state
   const [statusModalOpen, setStatusModalOpen] = React.useState(false);
+  const [lockModalOpen, setLockModalOpen] = React.useState(false);
+  const [unlockModalOpen, setUnlockModalOpen] = React.useState(false);
+  const [suspendModalOpen, setSuspendModalOpen] = React.useState(false);
+  const [unsuspendModalOpen, setUnsuspendModalOpen] = React.useState(false);
+  const [revokeGraceModalOpen, setRevokeGraceModalOpen] = React.useState(false);
   const [overrideModalOpen, setOverrideModalOpen] = React.useState(false);
   const [selectedEntitlement, setSelectedEntitlement] = React.useState<EffectiveEntitlement | null>(null);
   const [graceModalOpen, setGraceModalOpen] = React.useState(false);
@@ -98,6 +114,96 @@ export function CompanyDetailTabs({
 
   const [loading, setLoading] = React.useState(false);
   const [actionError, setActionError] = React.useState<string | null>(null);
+
+  // Lock Workspace handler
+  const handleLockSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoading(true);
+    setActionError(null);
+    const formData = new FormData(e.currentTarget);
+    formData.set('companyId', company.id);
+
+    const res = await lockCompanyAction(formData);
+    setLoading(false);
+    if (!res.success) {
+      setActionError(res.error || 'Failed to lock workspace');
+    } else {
+      setLockModalOpen(false);
+      router.refresh();
+    }
+  };
+
+  // Unlock Workspace handler
+  const handleUnlockSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoading(true);
+    setActionError(null);
+    const formData = new FormData(e.currentTarget);
+    formData.set('companyId', company.id);
+
+    const res = await unlockCompanyAction(formData);
+    setLoading(false);
+    if (!res.success) {
+      setActionError(res.error || 'Failed to unlock workspace');
+    } else {
+      setUnlockModalOpen(false);
+      router.refresh();
+    }
+  };
+
+  // Suspend Workspace handler
+  const handleSuspendSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoading(true);
+    setActionError(null);
+    const formData = new FormData(e.currentTarget);
+    formData.set('companyId', company.id);
+
+    const res = await suspendCompanyAction(formData);
+    setLoading(false);
+    if (!res.success) {
+      setActionError(res.error || 'Failed to suspend workspace');
+    } else {
+      setSuspendModalOpen(false);
+      router.refresh();
+    }
+  };
+
+  // Unsuspend Workspace handler
+  const handleUnsuspendSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoading(true);
+    setActionError(null);
+    const formData = new FormData(e.currentTarget);
+    formData.set('companyId', company.id);
+
+    const res = await unsuspendCompanyAction(formData);
+    setLoading(false);
+    if (!res.success) {
+      setActionError(res.error || 'Failed to unsuspend workspace');
+    } else {
+      setUnsuspendModalOpen(false);
+      router.refresh();
+    }
+  };
+
+  // Revoke Grace Period handler
+  const handleRevokeGraceSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoading(true);
+    setActionError(null);
+    const formData = new FormData(e.currentTarget);
+    formData.set('companyId', company.id);
+
+    const res = await revokeGracePeriodAction(formData);
+    setLoading(false);
+    if (!res.success) {
+      setActionError(res.error || 'Failed to revoke grace period');
+    } else {
+      setRevokeGraceModalOpen(false);
+      router.refresh();
+    }
+  };
 
   // Status Form handler
   const handleStatusChange = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -223,6 +329,7 @@ export function CompanyDetailTabs({
       <Tabs defaultValue="overview">
         <TabList>
           <TabTrigger value="overview">Overview</TabTrigger>
+          <TabTrigger value="access">Access Control</TabTrigger>
           <TabTrigger value="usage">Resource Usage</TabTrigger>
           <TabTrigger value="limits">Limits & Overrides</TabTrigger>
           <TabTrigger value="grace">Grace Period</TabTrigger>
@@ -423,6 +530,180 @@ export function CompanyDetailTabs({
                 </CardContent>
               </Card>
             </div>
+          </div>
+        </TabContent>
+
+        {/* ------------------------------------------------------------- */}
+        {/* TAB: ACCESS CONTROL & WORKSPACE ACTIONS */}
+        {/* ------------------------------------------------------------- */}
+        <TabContent value="access">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* SEEAKK Platform Integration State */}
+            <Card>
+              <CardHeader>
+                <div>
+                  <CardTitle>SEEAKK Platform Linkage</CardTitle>
+                  <CardDescription>
+                    Remote workspace identity and server-to-server synchronization status.
+                  </CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                  <div>
+                    <dt className="text-zinc-500 font-medium">Remote Workspace ID</dt>
+                    <dd className="font-mono text-zinc-100 mt-0.5 font-semibold text-sm">
+                      {company.workspaceId || 'None (Standalone Control Company)'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-zinc-500 font-medium">Environment</dt>
+                    <dd className="mt-0.5">
+                      <EnvironmentBadge environment={company.environment} />
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-zinc-500 font-medium">Control Lifecycle Status</dt>
+                    <dd className="mt-0.5">
+                      <CompanyStatusBadge status={company.status} />
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-zinc-500 font-medium">Last Synchronized</dt>
+                    <dd className="font-mono text-zinc-300 mt-0.5">
+                      {formatDate(company.updatedAt)}
+                    </dd>
+                  </div>
+                </dl>
+
+                <div className="p-3 bg-zinc-950 rounded-lg border border-zinc-800 text-xs text-zinc-400 space-y-1">
+                  <div className="flex items-center gap-1.5 text-zinc-200 font-medium">
+                    <Database className="h-3.5 w-3.5 text-indigo-400" />
+                    <span>Platform Connectivity</span>
+                  </div>
+                  <p className="text-[11px] text-zinc-400">
+                    {company.workspaceId
+                      ? `Bound to SEEAKK ${company.environment} platform via authenticated internal HTTPS API. Status operations directly synchronize with the remote platform.`
+                      : 'This company is not currently bound to an external SEEAKK workspace. Status changes affect only the Control database.'}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Operational Platform Controls */}
+            <Card>
+              <CardHeader>
+                <div>
+                  <CardTitle>Platform Operational Controls</CardTitle>
+                  <CardDescription>
+                    Mutate workspace status on the SEEAKK platform through authenticated internal APIs.
+                  </CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Lock / Unlock */}
+                <div className="p-3.5 bg-zinc-950/80 rounded-xl border border-zinc-800 flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-zinc-200">
+                      <Lock className="h-3.5 w-3.5 text-amber-400" />
+                      <span>Workspace Lock Control</span>
+                    </div>
+                    <p className="text-[11px] text-zinc-500">
+                      Freeze or unfreeze company operations without terminating data.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => setLockModalOpen(true)}
+                      className="gap-1 text-xs"
+                    >
+                      <Lock className="h-3.5 w-3.5 text-amber-400" />
+                      Lock
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setUnlockModalOpen(true)}
+                      className="gap-1 text-xs"
+                    >
+                      <Unlock className="h-3.5 w-3.5 text-emerald-400" />
+                      Unlock
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Suspend / Unsuspend */}
+                <div className="p-3.5 bg-zinc-950/80 rounded-xl border border-zinc-800 flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-zinc-200">
+                      <Ban className="h-3.5 w-3.5 text-rose-400" />
+                      <span>Tenancy Suspension</span>
+                    </div>
+                    <p className="text-[11px] text-zinc-500">
+                      Block all user logins and API traffic for severe policy or billing breach.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      onClick={() => setSuspendModalOpen(true)}
+                      className="gap-1 text-xs"
+                    >
+                      <Ban className="h-3.5 w-3.5" />
+                      Suspend
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setUnsuspendModalOpen(true)}
+                      className="gap-1 text-xs"
+                    >
+                      <PlayCircle className="h-3.5 w-3.5 text-indigo-400" />
+                      Unsuspend
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Grace Period */}
+                <div className="p-3.5 bg-zinc-950/80 rounded-xl border border-zinc-800 flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-zinc-200">
+                      <Clock className="h-3.5 w-3.5 text-amber-400" />
+                      <span>Grace Period Extension</span>
+                    </div>
+                    <p className="text-[11px] text-zinc-500">
+                      {gracePeriod && gracePeriod.isActive
+                        ? `Active grace: ${gracePeriod.daysRemaining} days remaining.`
+                        : 'No active grace period in effect.'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => setGraceModalOpen(true)}
+                      className="gap-1 text-xs"
+                    >
+                      <Clock className="h-3.5 w-3.5 text-amber-400" />
+                      Grant Grace
+                    </Button>
+                    {gracePeriod && gracePeriod.isActive && (
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        onClick={() => setRevokeGraceModalOpen(true)}
+                        className="gap-1 text-xs"
+                      >
+                        Revoke
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </TabContent>
 
@@ -939,16 +1220,31 @@ export function CompanyDetailTabs({
               {actionError}
             </div>
           )}
-          <Input
-            name="days"
-            type="number"
-            label="Duration in Days"
-            defaultValue={7}
-            min={1}
-            max={90}
-            required
-            helperText="Number of full days to extend access starting from today."
-          />
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              name="days"
+              type="number"
+              label="Duration in Days"
+              defaultValue={7}
+              min={1}
+              max={90}
+              required
+              helperText="Days to extend starting today."
+            />
+            <Input
+              name="allowedUserLimit"
+              type="number"
+              label="Allowed Seat Limit"
+              defaultValue={
+                typeof effectiveEntitlements.find((e) => e.key === 'USERS')?.effectiveValue === 'number'
+                  ? (effectiveEntitlements.find((e) => e.key === 'USERS')!.effectiveValue as number)
+                  : 10
+              }
+              min={1}
+              required
+              helperText="Allowed concurrent users."
+            />
+          </div>
           <div>
             <label className="block text-xs font-medium text-zinc-300 mb-1.5">
               Justification / Reason (Required)
@@ -978,6 +1274,178 @@ export function CompanyDetailTabs({
             </Button>
             <Button type="submit" size="sm" isLoading={loading}>
               Authorize Grace Period
+            </Button>
+          </div>
+        </form>
+      </Dialog>
+
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL: REVOKE GRACE PERIOD */}
+      {/* ------------------------------------------------------------- */}
+      <Dialog
+        isOpen={revokeGraceModalOpen}
+        onClose={() => setRevokeGraceModalOpen(false)}
+        title="Revoke Active Grace Period"
+        description="Terminates the temporary operational grace window immediately and restores standard lifecycle policies."
+      >
+        <form onSubmit={handleRevokeGraceSubmit} className="space-y-4">
+          {actionError && (
+            <div className="p-2.5 rounded-lg bg-rose-500/10 text-xs text-rose-400">
+              {actionError}
+            </div>
+          )}
+          <div>
+            <label className="block text-xs font-medium text-zinc-300 mb-1.5">
+              Operational Reason for Revocation (Required for Audit Trail)
+            </label>
+            <textarea
+              name="reason"
+              required
+              rows={3}
+              placeholder="e.g. Grace expired with no payment response, customer agreed to pause..."
+              className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-xs text-zinc-100 placeholder-zinc-500 focus:border-indigo-500 focus:outline-none"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-zinc-800">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setRevokeGraceModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="danger" size="sm" isLoading={loading}>
+              Revoke Grace Window
+            </Button>
+          </div>
+        </form>
+      </Dialog>
+
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL: LOCK WORKSPACE */}
+      {/* ------------------------------------------------------------- */}
+      <Dialog
+        isOpen={lockModalOpen}
+        onClose={() => setLockModalOpen(false)}
+        title="Lock Company Workspace"
+        description="Freezes platform activities for this tenant. The workspace remains preserved on the platform."
+      >
+        <form onSubmit={handleLockSubmit} className="space-y-4">
+          {actionError && (
+            <div className="p-2.5 rounded-lg bg-rose-500/10 text-xs text-rose-400">
+              {actionError}
+            </div>
+          )}
+          <div>
+            <label className="block text-xs font-medium text-zinc-300 mb-1.5">
+              Lock Reason / Audit Justification (Required)
+            </label>
+            <textarea
+              name="reason"
+              required
+              rows={3}
+              placeholder="e.g. Account locked pending commercial contract verification..."
+              className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-xs text-zinc-100 placeholder-zinc-500 focus:border-indigo-500 focus:outline-none"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-zinc-800">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setLockModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="secondary" size="sm" isLoading={loading}>
+              Confirm Lock
+            </Button>
+          </div>
+        </form>
+      </Dialog>
+
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL: UNLOCK WORKSPACE */}
+      {/* ------------------------------------------------------------- */}
+      <Dialog
+        isOpen={unlockModalOpen}
+        onClose={() => setUnlockModalOpen(false)}
+        title="Unlock Company Workspace"
+        description="Restores normal operations for this tenant company on the SEEAKK platform."
+      >
+        <form onSubmit={handleUnlockSubmit} className="space-y-4">
+          {actionError && (
+            <div className="p-2.5 rounded-lg bg-rose-500/10 text-xs text-rose-400">
+              {actionError}
+            </div>
+          )}
+          <p className="text-xs text-zinc-300">
+            Are you sure you want to remove the operational lock on <strong className="text-white">{company.name}</strong> ({company.workspaceId})?
+          </p>
+          <div className="flex justify-end gap-2 pt-2 border-t border-zinc-800">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setUnlockModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" size="sm" isLoading={loading}>
+              Confirm Unlock
+            </Button>
+          </div>
+        </form>
+      </Dialog>
+
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL: SUSPEND WORKSPACE */}
+      {/* ------------------------------------------------------------- */}
+      <Dialog
+        isOpen={suspendModalOpen}
+        onClose={() => setSuspendModalOpen(false)}
+        title="Suspend Company Workspace"
+        description="Immediately blocks all user logins and API integrations for this tenant."
+      >
+        <form onSubmit={handleSuspendSubmit} className="space-y-4">
+          {actionError && (
+            <div className="p-2.5 rounded-lg bg-rose-500/10 text-xs text-rose-400">
+              {actionError}
+            </div>
+          )}
+          <div>
+            <label className="block text-xs font-medium text-zinc-300 mb-1.5">
+              Suspension Reason (Required for Audit Trail)
+            </label>
+            <textarea
+              name="reason"
+              required
+              rows={3}
+              placeholder="e.g. Terms of service violation or critical past-due balance..."
+              className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-xs text-zinc-100 placeholder-zinc-500 focus:border-indigo-500 focus:outline-none"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-zinc-800">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setSuspendModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="danger" size="sm" isLoading={loading}>
+              Confirm Suspension
+            </Button>
+          </div>
+        </form>
+      </Dialog>
+
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL: UNSUSPEND WORKSPACE */}
+      {/* ------------------------------------------------------------- */}
+      <Dialog
+        isOpen={unsuspendModalOpen}
+        onClose={() => setUnsuspendModalOpen(false)}
+        title="Unsuspend Company Workspace"
+        description="Lifts the suspension and restores user access on the SEEAKK platform."
+      >
+        <form onSubmit={handleUnsuspendSubmit} className="space-y-4">
+          {actionError && (
+            <div className="p-2.5 rounded-lg bg-rose-500/10 text-xs text-rose-400">
+              {actionError}
+            </div>
+          )}
+          <p className="text-xs text-zinc-300">
+            Lift the suspension on <strong className="text-white">{company.name}</strong> ({company.workspaceId}) and restore operational access?
+          </p>
+          <div className="flex justify-end gap-2 pt-2 border-t border-zinc-800">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setUnsuspendModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" size="sm" isLoading={loading}>
+              Confirm Unsuspension
             </Button>
           </div>
         </form>

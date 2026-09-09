@@ -10,17 +10,22 @@ import { InvoiceStatusBadge, PaymentStatusBadge } from '@/components/ui/status-b
 import { EmptyState } from '@/components/ui/empty-state';
 import { formatCurrency, formatDate } from '@/lib/utils/formatters';
 import Link from 'next/link';
-import { Wallet, Clock, AlertTriangle, ArrowUpRight, Receipt } from 'lucide-react';
+import { Wallet, Clock, AlertTriangle, ArrowUpRight, Receipt, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { prisma } from '@/lib/db/prisma';
 
 export const dynamic = 'force-dynamic';
 
 export default async function BillingPage() {
-  const [metrics, invoices, payments]: [any, InvoiceListItemDTO[], PaymentDTO[]] = await Promise.all([
-    MetricsService.getDashboardMetrics(),
-    BillingService.getInvoices(10),
-    BillingService.getPayments(10),
-  ]);
+  const [metrics, invoices, payments, pendingProofCount]: [any, InvoiceListItemDTO[], PaymentDTO[], number] =
+    await Promise.all([
+      MetricsService.getDashboardMetrics(),
+      BillingService.getInvoices(10),
+      BillingService.getPayments(10),
+      prisma.paymentProofRequest.count({
+        where: { status: { in: ['PENDING', 'UNDER_REVIEW'] } },
+      }),
+    ]);
 
   return (
     <div className="space-y-6">
@@ -28,17 +33,30 @@ export default async function BillingPage() {
         title="Billing & Revenue Realization"
         description="Comprehensive financial management of customer subscription invoices, payment settlements, and collections."
         actions={
-          <Link href="/billing/invoices">
-            <Button variant="secondary" size="sm">
-              <Receipt className="h-4 w-4 mr-1.5" />
-              All Invoices
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/billing/payments">
+              <Button className="bg-indigo-600 hover:bg-indigo-500 text-white" size="sm">
+                <CreditCard className="h-4 w-4 mr-1.5" />
+                Payment Proofs
+                {pendingProofCount > 0 && (
+                  <span className="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-400 text-zinc-950">
+                    {pendingProofCount}
+                  </span>
+                )}
+              </Button>
+            </Link>
+            <Link href="/billing/invoices">
+              <Button variant="secondary" size="sm">
+                <Receipt className="h-4 w-4 mr-1.5" />
+                All Invoices
+              </Button>
+            </Link>
+          </div>
         }
       />
 
       {/* Financial Realization Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <MetricCard
           label="Total Amount Received"
           value={formatCurrency(metrics.totalAmountReceived, metrics.currency)}
@@ -58,6 +76,13 @@ export default async function BillingPage() {
           subValue="Past due invoice balance"
           icon={<AlertTriangle className="h-4 w-4" />}
           variant={metrics.overdueAmount > 0 ? 'danger' : 'default'}
+        />
+        <MetricCard
+          label="Pending Proof Reviews"
+          value={String(pendingProofCount)}
+          subValue="Manual transfer proofs"
+          icon={<CreditCard className="h-4 w-4" />}
+          variant={pendingProofCount > 0 ? 'warning' : 'default'}
         />
       </div>
 

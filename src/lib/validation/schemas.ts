@@ -68,14 +68,45 @@ export const removeEntitlementOverrideSchema = z.object({
 export const manageGracePeriodSchema = z.object({
   companyId: z.string().min(1),
   days: z.number().int().min(1, 'Grace period must be at least 1 day').max(90, 'Maximum 90 days'),
-  reason: z.string().min(5, 'Specific operational reason required for grace period grant'),
+  reason: z.string().min(3, 'Specific operational reason required for grace period grant'),
   notes: z.string().optional().nullable(),
+});
+
+export const grantGracePeriodSchema = z.object({
+  companyId: z.string().min(1),
+  allowedUserLimit: z.number().int().positive().optional(),
+  graceUntil: z.string().optional(),
+  days: z.number().int().min(1).max(90).optional(),
+  reason: z.string().min(3, 'Reason is required (min 3 characters)'),
 });
 
 export const revokeGracePeriodSchema = z.object({
   companyId: z.string().min(1),
   reason: z.string().min(3, 'Reason for revoking grace period is required'),
 });
+
+export const lockCompanySchema = z.object({
+  companyId: z.string().min(1),
+  reason: z.string().min(3, 'Reason for locking company is required (min 3 characters)'),
+});
+
+export const unlockCompanySchema = z.object({
+  companyId: z.string().min(1),
+});
+
+export const suspendCompanySchema = z.object({
+  companyId: z.string().min(1),
+  reason: z.string().min(3, 'Reason for suspending company is required (min 3 characters)'),
+});
+
+export const unsuspendCompanySchema = z.object({
+  companyId: z.string().min(1),
+});
+
+export const syncCompaniesSchema = z.object({
+  environment: z.enum(['TEST', 'STAGING', 'PRODUCTION']),
+});
+
 
 export const createInvoiceSchema = z.object({
   companyId: z.string().min(1),
@@ -104,3 +135,35 @@ export const updatePlanSchema = z.object({
   billingInterval: z.enum(['MONTHLY', 'ANNUAL']),
   isActive: z.boolean(),
 });
+
+// ---------------------------------------------------------------------------
+// PHASE 3B: PAYMENT REVIEW & APPROVAL SCHEMAS
+// ---------------------------------------------------------------------------
+
+export const syncPaymentRequestsSchema = z.object({
+  environment: z.enum(['TEST', 'STAGING', 'PRODUCTION']).default('TEST'),
+});
+
+export const approvePaymentSchema = z.object({
+  paymentRequestId: z.string().min(1, 'Payment Request ID is required'),
+  approvedUserLimit: z.coerce.number().int().positive('Approved user limit must be at least 1'),
+  accessFrom: z.string().min(1, 'Access start date is required'),
+  accessUntil: z.string().min(1, 'Access end date is required'),
+  remarks: z.string().optional().nullable(),
+  environment: z.enum(['TEST', 'STAGING', 'PRODUCTION']).default('TEST'),
+}).refine((data) => {
+  const from = new Date(data.accessFrom).getTime();
+  const until = new Date(data.accessUntil).getTime();
+  return !isNaN(from) && !isNaN(until) && until > from;
+}, {
+  message: 'Access until date must be strictly after access start date',
+  path: ['accessUntil'],
+});
+
+export const rejectPaymentSchema = z.object({
+  paymentRequestId: z.string().min(1, 'Payment Request ID is required'),
+  reason: z.string().min(3, 'Rejection reason must be at least 3 characters'),
+  remarks: z.string().optional().nullable(),
+  environment: z.enum(['TEST', 'STAGING', 'PRODUCTION']).default('TEST'),
+});
+

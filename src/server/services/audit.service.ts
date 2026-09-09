@@ -48,11 +48,20 @@ export class AuditService {
     // Sanitize old and new values to prevent sensitive credential storage
     const sanitize = (val?: Record<string, unknown> | null) => {
       if (!val) return null;
-      const sanitized = { ...val };
-      delete sanitized.password;
-      delete sanitized.passwordHash;
-      delete sanitized.token;
-      delete sanitized.secret;
+      const sanitized: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(val)) {
+        const lower = k.toLowerCase();
+        if (
+          lower.includes('secret') ||
+          lower.includes('key') ||
+          lower.includes('token') ||
+          lower.includes('password') ||
+          lower.includes('auth')
+        ) {
+          continue; // Strip sensitive fields from audit logs
+        }
+        sanitized[k] = v;
+      }
       return sanitized as object;
     };
 

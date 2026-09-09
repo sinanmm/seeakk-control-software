@@ -82,6 +82,8 @@ export async function loginAction(
           'billing:manage',
           'admins:manage',
           'audit:read',
+          'payments:review',
+          'sync:manage',
         ],
       });
       redirect('/dashboard');

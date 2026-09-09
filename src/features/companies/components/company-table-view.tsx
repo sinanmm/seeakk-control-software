@@ -18,10 +18,11 @@ import { Select } from '@/components/ui/select';
 import { Pagination } from '@/components/ui/pagination';
 import { EmptyState } from '@/components/ui/empty-state';
 import { CreateCompanyModal } from './create-company-modal';
-import { CompanySummaryDTO } from '@/types/company';
+import { SyncCompaniesModal } from './sync-companies-modal';
+import { CompanySummaryDTO, Environment } from '@/types/company';
 import { PlanDTO } from '@/types/entitlement';
 import { formatDate, formatNumber } from '@/lib/utils/formatters';
-import { Building2, Search, Plus, ExternalLink, Clock } from 'lucide-react';
+import { Building2, Search, Plus, ExternalLink, Clock, RefreshCw } from 'lucide-react';
 
 interface CompanyTableViewProps {
   companies: CompanySummaryDTO[];
@@ -44,6 +45,7 @@ export function CompanyTableView({
   const searchParams = useSearchParams();
 
   const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const [isSyncModalOpen, setIsSyncModalOpen] = React.useState(false);
   const [searchInput, setSearchInput] = React.useState(searchParams.get('search') || '');
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -125,6 +127,16 @@ export function CompanyTableView({
               <option value="TEST">Test</option>
             </Select>
           </div>
+
+          <Button
+            size="sm"
+            variant="secondary"
+            className="h-9 gap-1.5"
+            onClick={() => setIsSyncModalOpen(true)}
+          >
+            <RefreshCw className="h-3.5 w-3.5 text-indigo-400" />
+            Sync from SEEAKK
+          </Button>
 
           <Button size="sm" className="h-9" onClick={() => setIsModalOpen(true)}>
             <Plus className="h-4 w-4" />
@@ -251,6 +263,15 @@ export function CompanyTableView({
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         plans={plans}
+      />
+
+      <SyncCompaniesModal
+        isOpen={isSyncModalOpen}
+        onClose={() => {
+          setIsSyncModalOpen(false);
+          router.refresh();
+        }}
+        defaultEnvironment={(searchParams.get('env') as any) || 'TEST'}
       />
     </div>
   );
