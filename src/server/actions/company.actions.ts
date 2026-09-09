@@ -79,26 +79,29 @@ export async function createCompanyAction(formData: FormData) {
 export async function syncCompaniesAction(
   rawEnv: Environment | string
 ): Promise<{ success: boolean; summary?: CompanySyncSummary; error?: string }> {
-  const session = await getCurrentSession();
-  assertPermission(session, 'sync:manage');
-
-  const validated = syncCompaniesSchema.safeParse({ environment: rawEnv });
-  if (!validated.success) {
-    return {
-      success: false,
-      error: 'Invalid environment specified. Must be TEST, STAGING, or PRODUCTION.',
-    };
-  }
-
-  const environment = validated.data.environment as Environment;
-
   try {
+    const session = await getCurrentSession();
+    if (!session) {
+      return { success: false, error: 'Unauthorized: Authentication required.' };
+    }
+    assertPermission(session, 'sync:manage');
+
+    const validated = syncCompaniesSchema.safeParse({ environment: rawEnv });
+    if (!validated.success) {
+      return {
+        success: false,
+        error: 'Invalid environment specified. Must be TEST, STAGING, or PRODUCTION.',
+      };
+    }
+
+    const environment = validated.data.environment as Environment;
+
     const summary = await CompanySyncService.syncSeeakkCompanies(environment, {
-      initiatedBy: session!.email,
+      initiatedBy: session.email,
     });
 
     await AuditService.record({
-      session: session!,
+      session,
       action: AuditAction.SYNC_EVENT_TRIGGERED,
       entityType: 'CompanySync',
       entityId: environment,
@@ -120,9 +123,11 @@ export async function syncCompaniesAction(
     const safeMessage =
       err instanceof SeeakkIntegrationError
         ? err.toSafeUserMessage()
+        : err?.message?.includes('Forbidden')
+        ? err.message
         : 'Company synchronization encountered an error. Please try again.';
 
-    console.error(`[syncCompaniesAction] Failed:`, redactSecrets(err.message));
+    console.error(`[syncCompaniesAction] Failed:`, redactSecrets(err?.message || String(err)));
     return { success: false, error: safeMessage };
   }
 }

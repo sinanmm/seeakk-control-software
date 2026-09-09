@@ -193,17 +193,23 @@ export class CompanySyncService {
       return summary;
     } catch (err: any) {
       const statusCode = err instanceof SeeakkIntegrationError ? err.statusCode : 500;
-      const sanitizedError = redactSecrets(err.message || 'Synchronization failed unexpectedly');
+      const sanitizedError = redactSecrets(err?.message || 'Synchronization failed unexpectedly');
 
-      await prisma.systemSyncLog.update({
-        where: { id: syncLog.id },
-        data: {
-          status: SyncStatus.FAILED,
-          statusCode,
-          errorMessage: sanitizedError,
-          updatedAt: new Date(),
-        },
-      });
+      if (syncLog?.id) {
+        try {
+          await prisma.systemSyncLog.update({
+            where: { id: syncLog.id },
+            data: {
+              status: SyncStatus.FAILED,
+              statusCode,
+              errorMessage: sanitizedError,
+              updatedAt: new Date(),
+            },
+          });
+        } catch (updateErr) {
+          console.error('[CompanySyncService] Failed to record error state in syncLog:', updateErr);
+        }
+      }
 
       throw err;
     }
