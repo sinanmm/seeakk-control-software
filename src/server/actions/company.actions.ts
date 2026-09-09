@@ -82,9 +82,11 @@ export async function syncCompaniesAction(
   try {
     const session = await getCurrentSession();
     if (!session) {
+      console.warn('[syncCompaniesAction] Rejected: admin session missing or unauthenticated');
       return { success: false, error: 'Unauthorized: Authentication required.' };
     }
     assertPermission(session, 'sync:manage');
+    console.info(`[syncCompaniesAction] Session verified for admin: ${session.email}, env: ${rawEnv}`);
 
     const validated = syncCompaniesSchema.safeParse({ environment: rawEnv });
     if (!validated.success) {
@@ -120,6 +122,10 @@ export async function syncCompaniesAction(
 
     return { success: true, summary };
   } catch (err: any) {
+    if (err?.message?.includes('Forbidden')) {
+      console.warn(`[syncCompaniesAction] Permission denied: ${err.message}`);
+    }
+
     const safeMessage =
       err instanceof SeeakkIntegrationError
         ? err.toSafeUserMessage()

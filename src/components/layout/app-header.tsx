@@ -30,10 +30,12 @@ export function AppHeader({ session }: AppHeaderProps) {
         </div>
 
         {/* Security / Role Pill */}
-        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-indigo-500/10 border border-indigo-500/20 text-[11px] font-mono text-indigo-400">
-          <ShieldCheck className="h-3.5 w-3.5 text-indigo-400" />
-          <span>{session?.role || 'SUPER_ADMIN'}</span>
-        </div>
+        {session?.role ? (
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-indigo-500/10 border border-indigo-500/20 text-[11px] font-mono text-indigo-400">
+            <ShieldCheck className="h-3.5 w-3.5 text-indigo-400" />
+            <span>{session.role}</span>
+          </div>
+        ) : null}
       </div>
     </header>
   );

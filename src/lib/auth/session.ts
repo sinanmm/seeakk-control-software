@@ -4,7 +4,7 @@ import { AUTH_COOKIE_NAME, SESSION_MAX_AGE } from './constants';
 import { AdminSession, PermissionCode } from '@/types/auth';
 
 const getSecretKey = () => {
-  const secret = process.env.AUTH_SECRET;
+  const secret = (process.env.AUTH_SECRET || '').trim();
   if (!secret) {
     if (process.env.NODE_ENV === 'production') {
       throw new Error(
@@ -49,9 +49,19 @@ export async function getCurrentSession(): Promise<AdminSession | null> {
 export async function setSessionCookie(session: AdminSession): Promise<void> {
   const token = await createSessionToken(session);
   const cookieStore = cookies();
+
+  // Enforce Secure cookies in production HTTPS deployments.
+  // The canonical NEXT_PUBLIC_APP_URL is the primary protocol source.
+  // In production, secure is strictly true unless explicitly configured for local development.
+  // Client-controlled forwarded headers cannot downgrade production cookie security.
+  const isProduction = process.env.NODE_ENV === 'production';
+  const canonicalUrl = (process.env.NEXT_PUBLIC_APP_URL || '').trim().toLowerCase();
+  const isLocalHttpDev = !isProduction || canonicalUrl.startsWith('http://localhost') || canonicalUrl.startsWith('http://127.0.0.1');
+  const secure = isProduction ? !isLocalHttpDev : false;
+
   cookieStore.set(AUTH_COOKIE_NAME, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure,
     sameSite: 'lax',
     maxAge: SESSION_MAX_AGE,
     path: '/',
