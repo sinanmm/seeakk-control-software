@@ -165,7 +165,7 @@ export async function lockCompanyAction(formData: FormData) {
   try {
     if (company.workspaceId) {
       await getSyncService(company.environment).lockCompany(
-        company.workspaceId,
+        company.id,
         { reason, lockedBy: session!.email },
         { workspaceId: company.workspaceId, env: company.environment }
       );
@@ -226,7 +226,7 @@ export async function unlockCompanyAction(formData: FormData) {
   try {
     if (company.workspaceId) {
       await getSyncService(company.environment).unlockCompany(
-        company.workspaceId,
+        company.id,
         { unlockedBy: session!.email },
         { workspaceId: company.workspaceId, env: company.environment }
       );
@@ -285,7 +285,7 @@ export async function suspendCompanyAction(formData: FormData) {
   try {
     if (company.workspaceId) {
       await getSyncService(company.environment).suspendCompany(
-        company.workspaceId,
+        company.id,
         { reason, suspendedBy: session!.email },
         { workspaceId: company.workspaceId, env: company.environment }
       );
@@ -343,7 +343,7 @@ export async function unsuspendCompanyAction(formData: FormData) {
   try {
     if (company.workspaceId) {
       await getSyncService(company.environment).unsuspendCompany(
-        company.workspaceId,
+        company.id,
         { unsuspendedBy: session!.email },
         { workspaceId: company.workspaceId, env: company.environment }
       );
@@ -434,7 +434,7 @@ export async function grantGracePeriodAction(formData: FormData) {
   try {
     if (company.workspaceId) {
       await getSyncService(company.environment).grantGrace(
-        company.workspaceId,
+        company.id,
         {
           allowedUserLimit: finalUserLimit,
           graceFrom: now.toISOString(),
@@ -520,7 +520,7 @@ export async function revokeGracePeriodAction(formData: FormData) {
   try {
     if (company.workspaceId) {
       await getSyncService(company.environment).revokeGrace(
-        company.workspaceId,
+        company.id,
         { reason, revokedBy: session!.email },
         { workspaceId: company.workspaceId, env: company.environment }
       );

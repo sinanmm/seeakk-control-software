@@ -275,7 +275,7 @@ export class SeeakkSyncService {
       requestPayload: body,
       env: options?.env,
       action: (client, correlationId) =>
-        client.lockCompany(companyId, body, { correlationId, idempotencyKey }),
+        client.lockCompany(options?.workspaceId || companyId, body, { correlationId, idempotencyKey }),
     });
   }
 
@@ -298,7 +298,7 @@ export class SeeakkSyncService {
       requestPayload: body,
       env: options?.env,
       action: (client, correlationId) =>
-        client.unlockCompany(companyId, body, { correlationId, idempotencyKey }),
+        client.unlockCompany(options?.workspaceId || companyId, body, { correlationId, idempotencyKey }),
     });
   }
 
@@ -321,7 +321,7 @@ export class SeeakkSyncService {
       requestPayload: body,
       env: options?.env,
       action: (client, correlationId) =>
-        client.suspendCompany(companyId, body, { correlationId, idempotencyKey }),
+        client.suspendCompany(options?.workspaceId || companyId, body, { correlationId, idempotencyKey }),
     });
   }
 
@@ -344,7 +344,7 @@ export class SeeakkSyncService {
       requestPayload: body,
       env: options?.env,
       action: (client, correlationId) =>
-        client.unsuspendCompany(companyId, body, { correlationId, idempotencyKey }),
+        client.unsuspendCompany(options?.workspaceId || companyId, body, { correlationId, idempotencyKey }),
     });
   }
 
@@ -367,7 +367,7 @@ export class SeeakkSyncService {
       requestPayload: body,
       env: options?.env,
       action: (client, correlationId) =>
-        client.grantGrace(companyId, body, { correlationId, idempotencyKey }),
+        client.grantGrace(options?.workspaceId || companyId, body, { correlationId, idempotencyKey }),
     });
   }
 
@@ -390,7 +390,7 @@ export class SeeakkSyncService {
       requestPayload: body,
       env: options?.env,
       action: (client, correlationId) =>
-        client.revokeGrace(companyId, body, { correlationId, idempotencyKey }),
+        client.revokeGrace(options?.workspaceId || companyId, body, { correlationId, idempotencyKey }),
     });
   }
 
