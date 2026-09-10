@@ -17,6 +17,7 @@ import {
   UnsuspendCompanyInput,
   GrantGraceInput,
   RevokeGraceInput,
+  UpdateCompanyLimitInput,
   SeeakkActionResponse,
 } from '@/lib/seeakk-client/contracts';
 
@@ -391,6 +392,29 @@ export class SeeakkSyncService {
       env: options?.env,
       action: (client, correlationId) =>
         client.revokeGrace(options?.workspaceId || companyId, body, { correlationId, idempotencyKey }),
+    });
+  }
+
+  /**
+   * Updates a company's approved user seat limit on SEEAKK.
+   */
+  public async updateCompanyLimit(
+    companyId: string,
+    body: UpdateCompanyLimitInput,
+    options?: { workspaceId?: string; env?: string; operationId?: string }
+  ): Promise<SyncMutationResult<SeeakkActionResponse>> {
+    const opId = options?.operationId || Date.now();
+    const idempotencyKey = `comp_limit_${companyId}_${opId}`;
+
+    return this.executeOutboundMutation({
+      idempotencyKey,
+      eventType: 'company.limit_updated',
+      workspaceId: options?.workspaceId,
+      companyId,
+      requestPayload: body,
+      env: options?.env,
+      action: (client, correlationId) =>
+        client.updateCompanyLimit(options?.workspaceId || companyId, body, { correlationId, idempotencyKey }),
     });
   }
 

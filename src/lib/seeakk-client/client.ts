@@ -47,6 +47,7 @@ import {
   RevokeGraceInput,
   ApprovePaymentInput,
   RejectPaymentInput,
+  UpdateCompanyLimitInput,
 } from './contracts';
 
 export interface RequestOptions {
@@ -476,6 +477,23 @@ export class SeeakkApiClient {
       {
         method: 'POST',
         path: `/api/internal/platform/companies/${encodeURIComponent(companyId)}/revoke-grace`,
+        body,
+        correlationId: options?.correlationId,
+        idempotencyKey: options?.idempotencyKey,
+      },
+      SeeakkActionResponseSchema
+    );
+  }
+
+  public async updateCompanyLimit(
+    companyId: string,
+    body: UpdateCompanyLimitInput,
+    options?: { correlationId?: string; idempotencyKey?: string }
+  ): Promise<SeeakkActionResponse> {
+    return this.executeRequest(
+      {
+        method: 'POST',
+        path: `/api/internal/platform/companies/${encodeURIComponent(companyId)}/limit`,
         body,
         correlationId: options?.correlationId,
         idempotencyKey: options?.idempotencyKey,

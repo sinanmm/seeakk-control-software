@@ -640,6 +640,31 @@ export async function setEntitlementOverrideAction(formData: FormData) {
     return { success: false, error: 'Failed to save entitlement override.' };
   }
 
+  // If overriding USERS entitlement, synchronize effective limit to SEEAKK
+  if (validated.data.key === EntitlementKey.USERS) {
+    try {
+      const company = await prisma.company.findUnique({
+        where: { id: validated.data.companyId },
+        select: { id: true, workspaceId: true, environment: true },
+      });
+
+      if (company?.workspaceId) {
+        const syncService = getSyncService(company.environment);
+        await syncService.updateCompanyLimit(
+          company.id,
+          {
+            approvedUserLimit: validated.data.numericValue ?? null,
+            reason: validated.data.reason,
+            updatedBy: session!.id,
+          },
+          { workspaceId: company.workspaceId, env: company.environment }
+        );
+      }
+    } catch (syncErr: any) {
+      console.error('Failed to synchronize user limit override to SEEAKK:', syncErr);
+    }
+  }
+
   revalidatePath(`/companies/${validated.data.companyId}`);
   return { success: true };
 }
@@ -658,6 +683,47 @@ export async function removeEntitlementOverrideAction(formData: FormData) {
   }
 
   await CompanyService.removeEntitlementOverride(companyId, key, reason, session!);
+
+  // If removing USERS entitlement override, restore plan default on SEEAKK
+  if (key === EntitlementKey.USERS) {
+    try {
+      const company = await prisma.company.findUnique({
+        where: { id: companyId },
+        select: {
+          id: true,
+          workspaceId: true,
+          environment: true,
+          subscriptions: {
+            where: { status: { in: ['ACTIVE', 'TRIALING'] } },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            include: {
+              plan: {
+                include: { entitlements: { where: { key: EntitlementKey.USERS } } },
+              },
+            },
+          },
+        },
+      });
+
+      if (company?.workspaceId) {
+        const planDefault = company.subscriptions[0]?.plan?.entitlements[0]?.numericValue ?? null;
+        const syncService = getSyncService(company.environment);
+        await syncService.updateCompanyLimit(
+          company.id,
+          {
+            approvedUserLimit: planDefault,
+            reason: `Entitlement override removed: ${reason}`,
+            updatedBy: session!.id,
+          },
+          { workspaceId: company.workspaceId, env: company.environment }
+        );
+      }
+    } catch (syncErr: any) {
+      console.error('Failed to restore plan default user limit on SEEAKK:', syncErr);
+    }
+  }
+
   revalidatePath(`/companies/${companyId}`);
   return { success: true };
 }

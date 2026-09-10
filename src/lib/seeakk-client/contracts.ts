@@ -331,6 +331,12 @@ export const RejectPaymentRequestSchema = z.object({
   rejectedBy: z.string().optional(),
 });
 
+export const UpdateCompanyLimitRequestSchema = z.object({
+  approvedUserLimit: z.number().int().min(0).nullable(),
+  reason: z.string().optional(),
+  updatedBy: z.string().optional(),
+});
+
 // ---------------------------------------------------------------------------
 // TYPE INFERENCES
 // ---------------------------------------------------------------------------
@@ -358,6 +364,7 @@ export type SuspendCompanyRequest = z.infer<typeof SuspendCompanyRequestSchema>;
 export type UnsuspendCompanyRequest = z.infer<typeof UnsuspendCompanyRequestSchema>;
 export type ApprovePaymentRequest = z.infer<typeof ApprovePaymentRequestSchema>;
 export type RejectPaymentRequest = z.infer<typeof RejectPaymentRequestSchema>;
+export type UpdateCompanyLimitRequest = z.infer<typeof UpdateCompanyLimitRequestSchema>;
 
 export type GrantGraceInput = GrantGraceRequest;
 export type RevokeGraceInput = RevokeGraceRequest;
@@ -367,4 +374,5 @@ export type SuspendCompanyInput = SuspendCompanyRequest;
 export type UnsuspendCompanyInput = UnsuspendCompanyRequest;
 export type ApprovePaymentInput = ApprovePaymentRequest;
 export type RejectPaymentInput = RejectPaymentRequest;
+export type UpdateCompanyLimitInput = UpdateCompanyLimitRequest;
 
