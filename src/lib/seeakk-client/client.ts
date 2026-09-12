@@ -549,7 +549,7 @@ export class SeeakkApiClient {
   public async getPaymentProof(
     paymentRequestId: string,
     correlationId?: string
-  ): Promise<{ data: ArrayBuffer; contentType: string } | { storageKey: string }> {
+  ): Promise<{ data: ArrayBuffer; contentType: string } | { storageKey: string; proofUrl?: string }> {
     assertServerOnly();
     const path = `/api/internal/platform/payment-requests/${encodeURIComponent(paymentRequestId)}/proof`;
     const url = `${this.config.baseUrl}${path}`;
@@ -586,7 +586,10 @@ export class SeeakkApiClient {
       const contentType = response.headers.get('content-type') || 'application/octet-stream';
       if (contentType.includes('application/json')) {
         const json = await response.json();
-        return { storageKey: json.proofStorageKey || json.storageKey || '' };
+        return {
+          storageKey: json.proofStorageKey || json.storageKey || '',
+          proofUrl: json.proofUrl,
+        };
       }
 
       const arrayBuffer = await response.arrayBuffer();

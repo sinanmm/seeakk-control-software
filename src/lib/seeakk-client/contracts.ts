@@ -230,7 +230,43 @@ export const SeeakkPaymentRequestListResponseSchema = z.object({
   pagination: PaginationSchema,
 });
 
-export const SeeakkPaymentRequestDetailsResponseSchema = z.object({
+export const SeeakkPaymentRequestDetailsResponseSchema = z.preprocess((val: any) => {
+  if (val && typeof val === 'object' && !val.paymentRequest && (val.paymentRequestId || val.company || val.calculatedAmount !== undefined || val.amount !== undefined)) {
+    return {
+      success: val.success ?? true,
+      paymentRequest: {
+        id: val.paymentRequestId || val.id,
+        paymentRequestId: val.paymentRequestId || val.id,
+        workspaceId: val.company?.id || val.workspaceId || '',
+        status: val.status || 'PENDING',
+        amount: val.amount ?? val.calculatedAmount,
+        calculatedAmount: val.calculatedAmount ?? val.amount,
+        unitPrice: val.unitPrice,
+        currency: val.currency || 'INR',
+        requestedUsers: val.requestedUsers,
+        requestedMonths: val.requestedMonths,
+        paymentReference: val.paymentReference,
+        planCodeSnapshot: val.planCodeSnapshot,
+        planNameSnapshot: val.planNameSnapshot,
+        company: val.company,
+        companyName: val.company?.companyName,
+        requestedPlan: val.requestedPlan,
+        currentPlan: val.currentPlan,
+        submission: val.submission,
+        createdAt: val.createdAt,
+      },
+      seatUsage: val.currentEntitlement ? {
+        activeUserCount: val.currentEntitlement.activeUserCount || 0,
+        availableUserCount: val.currentEntitlement.availableSeats || 0,
+      } : val.seatUsage,
+      accessDecision: val.currentEntitlement ? {
+        isAllowed: true,
+        reason: val.currentEntitlement.effectiveStatus || '',
+      } : val.accessDecision,
+    };
+  }
+  return val;
+}, z.object({
   success: z.boolean(),
   paymentRequest: SeeakkPaymentRequestItemSchema.passthrough(),
   seatUsage: z.object({
@@ -241,7 +277,7 @@ export const SeeakkPaymentRequestDetailsResponseSchema = z.object({
     isAllowed: z.boolean(),
     reason: z.string(),
   }).optional(),
-}).passthrough();
+}).passthrough());
 
 // ---------------------------------------------------------------------------
 // 7. PAYMENT PROOF RESPONSE (/api/internal/platform/payment-requests/:id/proof)
@@ -250,6 +286,8 @@ export const SeeakkPaymentRequestDetailsResponseSchema = z.object({
 export const SeeakkPaymentProofResponseSchema = z.object({
   success: z.boolean(),
   proofStorageKey: z.string().optional(),
+  storageKey: z.string().optional(),
+  proofUrl: z.string().optional(),
 }).passthrough();
 
 // ---------------------------------------------------------------------------
