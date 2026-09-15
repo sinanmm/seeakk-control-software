@@ -21,9 +21,10 @@ describe('SEEAKK Server-to-Server Integration Foundation', () => {
   const mockBaseUrl = 'https://seeakk-test.internal';
 
   beforeEach(() => {
-    process.env.SEEAKK_CONTROL_SERVICE_KEY = mockServiceKey;
+    process.env.SEEAKK_CONTROL_SERVICE_KEY_TEST = mockServiceKey;
     process.env.SEEAKK_API_BASE_URL_TEST = mockBaseUrl;
     process.env.SEEAKK_WEBHOOK_SECRET = 'test_webhook_secret_67890';
+    delete process.env.SEEAKK_CONTROL_SERVICE_KEY;
   });
 
   // 1. API Client Authentication Headers

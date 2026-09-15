@@ -4,7 +4,6 @@ import { hasPermission } from '@/lib/auth/permissions';
 import { prisma } from '@/lib/db/prisma';
 import { SeeakkApiClient } from '@/lib/seeakk-client/client';
 import { SeeakkNotFoundError, SeeakkIntegrationError, redactSecrets } from '@/lib/seeakk-client/errors';
-import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,7 +47,7 @@ export async function GET(
     const client = new SeeakkApiClient(environment);
     const proofResult = await client.getPaymentProof(seeakkId);
 
-    // 4. Handle binary streaming vs. JSON reference
+    // 4. Handle binary streaming directly from platform
     if ('data' in proofResult) {
       return new Response(proofResult.data, {
         status: 200,
@@ -60,6 +59,7 @@ export async function GET(
       });
     }
 
+    // 5. Handle presigned proofUrl from platform
     if ('proofUrl' in proofResult && proofResult.proofUrl) {
       try {
         const remoteRes = await fetch(proofResult.proofUrl);
@@ -76,57 +76,37 @@ export async function GET(
           });
         }
       } catch (fetchErr) {
-        console.error('Failed to fetch proof image from presigned URL:', fetchErr);
+        console.error('[GET /api/admin/payment-requests/:id/proof] Failed to fetch proof from proofUrl:', fetchErr);
       }
     }
 
-    if ('storageKey' in proofResult && proofResult.storageKey) {
-      try {
-        const wasabiClient = new S3Client({
-          endpoint: process.env.WASABI_ENDPOINT || 'https://s3.wasabisys.com',
-          region: process.env.WASABI_REGION || 'us-east-1',
-          credentials: {
-            accessKeyId: process.env.WASABI_ACCESS_KEY || '2I71AT7OHBH9LF4KDG28',
-            secretAccessKey: process.env.WASABI_SECRET_KEY || 'MQM2UAH2GTYTJP30Qtz9DatKNzrhGdKkFzud8jtQ',
-          },
-          forcePathStyle: true,
-        });
-        const cleanKey = proofResult.storageKey.startsWith('/')
-          ? proofResult.storageKey.slice(1)
-          : proofResult.storageKey;
-        const bucket = process.env.WASABI_BUCKET || 'geniusgroup';
-        const s3Res = await wasabiClient.send(
-          new GetObjectCommand({
-            Bucket: bucket,
-            Key: cleanKey,
-          })
-        );
-        if (s3Res.Body) {
-          const stream = s3Res.Body as any;
-          const chunks: Buffer[] = [];
-          for await (const chunk of stream) {
-            chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
-          }
-          const buffer = Buffer.concat(chunks);
-          return new Response(buffer, {
-            status: 200,
-            headers: {
-              'Content-Type': s3Res.ContentType || 'image/png',
-              'Cache-Control': 'private, no-store, must-revalidate',
-              'Content-Disposition': 'inline',
-            },
-          });
-        }
-      } catch (s3Err) {
-        console.error('Failed to retrieve proof directly from Wasabi storage:', s3Err);
-      }
+    // 6. Handle offline verified payments without an attached screenshot
+    if ('storageKey' in proofResult && proofResult.storageKey === 'OFFLINE_VERIFIED') {
+      const svgBadge = `
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="260" viewBox="0 0 600 260">
+  <rect width="600" height="260" fill="#09090b" rx="12" stroke="#27272a" stroke-width="1.5"/>
+  <circle cx="300" cy="80" r="32" fill="#10b981" fill-opacity="0.12" stroke="#10b981" stroke-width="2"/>
+  <path d="M288 80 L296 88 L312 72" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="300" y="145" fill="#f4f4f5" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="600" text-anchor="middle">Offline Verified Payment</text>
+  <text x="300" y="175" fill="#a1a1aa" font-family="system-ui, -apple-system, sans-serif" font-size="12" text-anchor="middle">This payment was approved directly in Control Software without an attached document.</text>
+  <text x="300" y="215" fill="#71717a" font-family="monospace" font-size="11" text-anchor="middle">Request ID: ${seeakkId}</text>
+</svg>`.trim();
+
+      return new Response(svgBadge, {
+        status: 200,
+        headers: {
+          'Content-Type': 'image/svg+xml',
+          'Cache-Control': 'private, no-store, must-revalidate',
+          'Content-Disposition': 'inline',
+        },
+      });
     }
 
-    return NextResponse.json({
-      success: true,
-      storageKey: proofResult.storageKey,
-      proofUrl: (proofResult as any).proofUrl,
-    });
+    // 7. If no binary or valid URL was retrievable
+    return new NextResponse(
+      JSON.stringify({ success: false, error: 'Payment proof screenshot not found on SEEAKK.' }),
+      { status: 404, headers: { 'Content-Type': 'application/json' } }
+    );
   } catch (err: any) {
     if (err instanceof SeeakkNotFoundError) {
       return new NextResponse(

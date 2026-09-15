@@ -27,7 +27,7 @@ import { CompanyStatus, Environment, EntitlementKey, EntitlementType, AuditActio
 import { SeeakkIntegrationError, redactSecrets } from '@/lib/seeakk-client/errors';
 
 function getSyncService(env?: Environment | string) {
-  return new SeeakkSyncService(new SeeakkApiClient(env || 'TEST'));
+  return new SeeakkSyncService(new SeeakkApiClient(env));
 }
 
 /**

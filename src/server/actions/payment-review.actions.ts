@@ -17,7 +17,7 @@ import { Environment, PaymentRequestStatus, AuditAction } from '@prisma/client';
 import { SeeakkIntegrationError, redactSecrets } from '@/lib/seeakk-client/errors';
 
 function getSyncService(env?: Environment | string) {
-  return new SeeakkSyncService(new SeeakkApiClient(env || 'TEST'));
+  return new SeeakkSyncService(new SeeakkApiClient(env));
 }
 
 export interface ActionResponse<T = unknown> {

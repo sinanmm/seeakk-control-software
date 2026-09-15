@@ -27,9 +27,12 @@ describe('Phase 3A: SEEAKK Company Synchronization & Status Operations', () => {
   const mockServiceKey = 'test_service_key_secret_99999';
 
   beforeEach(() => {
-    process.env.SEEAKK_CONTROL_SERVICE_KEY = mockServiceKey;
+    process.env.SEEAKK_CONTROL_SERVICE_KEY_TEST = mockServiceKey;
+    process.env.SEEAKK_CONTROL_SERVICE_KEY_PRODUCTION = 'prod_service_key_99999';
     process.env.SEEAKK_API_BASE_URL_TEST = 'https://seeakk-test.internal';
+    process.env.SEEAKK_API_BASE_URL_PRODUCTION = 'https://seeakk-prod.internal';
     process.env.SEEAKK_ENVIRONMENT = 'TEST';
+    delete process.env.SEEAKK_CONTROL_SERVICE_KEY;
   });
 
   // 1. Company synchronization creates new companies

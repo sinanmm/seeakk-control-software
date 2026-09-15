@@ -83,6 +83,20 @@ export class SeeakkApiClient {
   }
 
   /**
+   * Returns the environment targeted by this client instance.
+   */
+  public getEnvironment(): Environment | string | undefined {
+    return this.environment;
+  }
+
+  /**
+   * Returns the resolved base URL targeted by this client instance.
+   */
+  public getBaseUrl(): string {
+    return this.config.baseUrl;
+  }
+
+  /**
    * Internal HTTP execution engine with timeout, backoff, and error mapping.
    */
   public async executeRequest<T>(
