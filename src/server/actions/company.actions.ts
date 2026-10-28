@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { getCurrentSession } from '@/lib/auth/session';
 import { assertPermission } from '@/lib/auth/permissions';
 import { CompanyService } from '@/server/services/company.service';
+import { CompanyDeletionService } from '@/server/services/company-deletion.service';
+import { AdminSession } from '@/types/auth';
 import { CompanySyncService, CompanySyncSummary } from '@/server/services/company-sync.service';
 import { SeeakkSyncService } from '@/server/services/seeakk-sync.service';
 import { SeeakkApiClient } from '@/lib/seeakk-client/client';
@@ -726,4 +728,49 @@ export async function removeEntitlementOverrideAction(formData: FormData) {
 
   revalidatePath(`/companies/${companyId}`);
   return { success: true };
+}
+
+/**
+ * Permanently deletes a company and its associated SEEAKK workspace.
+ * Requires exact company name confirmation matching.
+ */
+export async function deleteCompanyAction(
+  companyId: string,
+  confirmationName: string,
+  sessionOverride?: AdminSession
+): Promise<{ success: boolean; error?: string; message?: string }> {
+  try {
+    const session = sessionOverride || (await getCurrentSession());
+    if (!session) {
+      return { success: false, error: 'Unauthorized: Authentication required.' };
+    }
+
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: { id: true, name: true },
+    });
+
+    if (!company) {
+      return { success: false, error: 'Company not found.' };
+    }
+
+    if (company.name.trim() !== (confirmationName || '').trim()) {
+      return {
+        success: false,
+        error: `Confirmation name does not match. Please type "${company.name}" exactly.`,
+      };
+    }
+
+    const result = await CompanyDeletionService.deleteCompanyAndWorkspace(companyId, session);
+
+    if (!result.success) {
+      return { success: false, error: result.message };
+    }
+
+    revalidatePath('/companies');
+    revalidatePath('/dashboard');
+    return { success: true, message: result.message };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Failed to delete company.' };
+  }
 }

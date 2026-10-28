@@ -22,6 +22,7 @@ import {
   unlockCompanyAction,
   suspendCompanyAction,
   unsuspendCompanyAction,
+  deleteCompanyAction,
 } from '@/server/actions/company.actions';
 import { createInvoiceAction, recordPaymentAction } from '@/server/actions/billing.actions';
 import { EffectiveEntitlement } from '@/types/entitlement';
@@ -43,6 +44,7 @@ import {
   PlayCircle,
   Database,
   RefreshCw,
+  Trash2,
 } from 'lucide-react';
 import { CompanyStatus, Environment } from '@/types/company';
 
@@ -112,8 +114,36 @@ export function CompanyDetailTabs({
   const [paymentModalOpen, setPaymentModalOpen] = React.useState(false);
   const [selectedInvoice, setSelectedInvoice] = React.useState<any | null>(null);
 
+  // Danger Zone: Delete Company state
+  const [deleteModalOpen, setDeleteModalOpen] = React.useState(false);
+  const [confirmationInput, setConfirmationInput] = React.useState('');
+  const [deleteLoading, setDeleteLoading] = React.useState(false);
+
   const [loading, setLoading] = React.useState(false);
   const [actionError, setActionError] = React.useState<string | null>(null);
+
+  const handleDeleteCompanySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (confirmationInput.trim() !== company.name.trim()) return;
+
+    setDeleteLoading(true);
+    setActionError(null);
+
+    try {
+      const res = await deleteCompanyAction(company.id, confirmationInput.trim());
+      if (!res.success) {
+        setActionError(res.error || 'Failed to delete company.');
+        setDeleteLoading(false);
+        return;
+      }
+      setDeleteModalOpen(false);
+      router.push('/companies');
+      router.refresh();
+    } catch (err: any) {
+      setActionError(err.message || 'An unexpected error occurred during company deletion.');
+      setDeleteLoading(false);
+    }
+  };
 
   // Lock Workspace handler
   const handleLockSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -704,6 +734,46 @@ export function CompanyDetailTabs({
                 </div>
               </CardContent>
             </Card>
+
+            {/* ----------------------------------------------------------- */}
+            {/* DANGER ZONE: PERMANENT COMPANY & WORKSPACE DELETION */}
+            {/* ----------------------------------------------------------- */}
+            <div className="col-span-1 lg:col-span-2 pt-2">
+              <Card className="border-rose-900/60 bg-rose-950/20">
+                <CardHeader>
+                  <div className="flex items-center gap-2 text-rose-400">
+                    <AlertTriangle className="h-5 w-5" />
+                    <CardTitle className="text-rose-400">Danger Zone</CardTitle>
+                  </div>
+                  <CardDescription className="text-zinc-400">
+                    Irreversible administrative tenant deletion. This removes all workspace assets and cannot be undone.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-rose-900/40 bg-zinc-950/60">
+                    <div className="space-y-1">
+                      <h4 className="text-xs font-semibold text-zinc-100">Delete Company</h4>
+                      <p className="text-xs text-zinc-400 max-w-2xl leading-relaxed">
+                        This permanently deletes the company, its workspace, users, CRM data, follow-ups, call history, recordings, targets, settings, and other workspace data. This action cannot be undone.
+                      </p>
+                    </div>
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      onClick={() => {
+                        setDeleteModalOpen(true);
+                        setConfirmationInput('');
+                        setActionError(null);
+                      }}
+                      className="shrink-0 gap-1.5"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Delete Company
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </TabContent>
 
@@ -1562,6 +1632,77 @@ export function CompanyDetailTabs({
             </Button>
             <Button type="submit" size="sm" isLoading={loading}>
               Confirm Payment
+            </Button>
+          </div>
+        </form>
+      </Dialog>
+
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL: PERMANENTLY DELETE COMPANY & WORKSPACE */}
+      {/* ------------------------------------------------------------- */}
+      <Dialog
+        isOpen={deleteModalOpen}
+        onClose={() => {
+          if (!deleteLoading) {
+            setDeleteModalOpen(false);
+            setConfirmationInput('');
+            setActionError(null);
+          }
+        }}
+        title="Permanently Delete Company & Workspace"
+        description="This action is destructive and permanent. All tenant CRM data and recordings will be deleted."
+      >
+        <form onSubmit={handleDeleteCompanySubmit} className="space-y-4">
+          {actionError && (
+            <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-xs text-rose-400">
+              {actionError}
+            </div>
+          )}
+
+          <div className="p-3 rounded-lg bg-rose-950/30 border border-rose-900/40 text-xs text-rose-200 space-y-1">
+            <p className="font-semibold text-rose-300">Warning:</p>
+            <p>
+              This permanently deletes the company, its workspace, users, CRM data, follow-ups, call history, recordings, targets, settings, and other workspace data. This action cannot be undone.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-xs font-medium text-zinc-300">
+              To confirm deletion, please type <strong className="text-white font-mono bg-zinc-900 px-1 py-0.5 rounded border border-zinc-700">{company.name}</strong> below:
+            </label>
+            <Input
+              type="text"
+              value={confirmationInput}
+              onChange={(e) => setConfirmationInput(e.target.value)}
+              placeholder={company.name}
+              disabled={deleteLoading}
+              className="text-xs"
+              autoFocus
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-zinc-800">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setDeleteModalOpen(false);
+                setConfirmationInput('');
+                setActionError(null);
+              }}
+              disabled={deleteLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="danger"
+              size="sm"
+              disabled={confirmationInput.trim() !== company.name.trim() || deleteLoading}
+              isLoading={deleteLoading}
+            >
+              {deleteLoading ? 'Deleting...' : 'Permanently Delete Company'}
             </Button>
           </div>
         </form>

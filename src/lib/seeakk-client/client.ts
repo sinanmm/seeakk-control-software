@@ -516,6 +516,21 @@ export class SeeakkApiClient {
     );
   }
 
+  public async deleteCompany(
+    companyId: string,
+    options?: { correlationId?: string; idempotencyKey?: string }
+  ): Promise<SeeakkActionResponse> {
+    return this.executeRequest(
+      {
+        method: 'DELETE',
+        path: `/api/internal/platform/companies/${encodeURIComponent(companyId)}`,
+        correlationId: options?.correlationId,
+        idempotencyKey: options?.idempotencyKey,
+      },
+      SeeakkActionResponseSchema
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // 4. PAYMENT REQUEST OPERATIONS
   // ---------------------------------------------------------------------------

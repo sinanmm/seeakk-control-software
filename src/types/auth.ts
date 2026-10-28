@@ -1,6 +1,7 @@
 export type PermissionCode =
   | 'companies:read'
   | 'companies:write'
+  | 'companies:delete'
   | 'companies:status'
   | 'plans:manage'
   | 'entitlements:override'
