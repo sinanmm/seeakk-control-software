@@ -117,14 +117,46 @@ export class CompanyDeletionService {
             idempotencyKey,
           });
 
-          if (remoteResponse.success) {
-            remoteWorkspaceDeleted = true;
-            storageObjectsDeleted = (remoteResponse as any).storageObjectsDeleted ?? 0;
+          if (!remoteResponse.success) {
+            return {
+              success: false,
+              statusCode: 502,
+              message:
+                remoteResponse.message ||
+                'Remote platform rejected workspace deletion. Deletion aborted.',
+              companyId: cleanCompanyId,
+              workspaceId,
+            };
           }
+
+          remoteWorkspaceDeleted = true;
+          storageObjectsDeleted = (remoteResponse as any).storageObjectsDeleted ?? 0;
         } catch (remoteErr: any) {
-          if (remoteErr instanceof SeeakkNotFoundError || remoteErr.statusCode === 404) {
-            // Workspace was already removed on remote platform; proceed with local database cleanup
-            remoteWorkspaceDeleted = true;
+          const rawMessage = remoteErr?.message || '';
+          const isRouteMissing =
+            rawMessage.includes('Not Found - /api/') ||
+            rawMessage.includes('Cannot DELETE') ||
+            rawMessage.toLowerCase().includes('route not found');
+
+          // If the endpoint itself is missing or unreachable, abort with 502 error
+          if (isRouteMissing) {
+            return {
+              success: false,
+              statusCode: 502,
+              message:
+                'Failed to delete remote workspace: The deletion endpoint is not available or not deployed on the target CRM platform.',
+              companyId: cleanCompanyId,
+              workspaceId,
+            };
+          }
+
+          // If the workspace was explicitly confirmed not found by the CRM service
+          const isExplicitWorkspaceNotFound =
+            rawMessage.toLowerCase().includes('workspace not found');
+
+          if (isExplicitWorkspaceNotFound) {
+            // Workspace does not exist in CRM database; proceed with local cleanup
+            remoteWorkspaceDeleted = false;
           } else if (remoteErr.statusCode === 409) {
             return {
               success: false,
@@ -135,7 +167,7 @@ export class CompanyDeletionService {
             };
           } else {
             // Remote platform or Wasabi deletion failed: surface error and abort local database deletion
-            const sanitizedMessage = redactSecrets(remoteErr.message || 'Remote platform deletion failed');
+            const sanitizedMessage = redactSecrets(rawMessage || 'Remote platform deletion failed');
             return {
               success: false,
               statusCode: remoteErr.statusCode || 502,
